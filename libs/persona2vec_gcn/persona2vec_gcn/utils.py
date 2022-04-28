@@ -2,7 +2,7 @@ import csv
 import errno
 import logging
 import os
-
+from scipy import sparse
 import networkx as nx
 import numpy as np
 from texttable import Texttable
@@ -48,7 +48,11 @@ def read_graph(input_file_path, weighted=False, directed=False):
     :return G: output network
     """
     if weighted:
-        G = nx.read_edgelist(input_file_path, nodetype=str, create_using=nx.DiGraph(),)
+        G = nx.read_edgelist(
+            input_file_path,
+            nodetype=str,
+            create_using=nx.DiGraph(),
+        )
     else:
         G = nx.read_edgelist(input_file_path, nodetype=str, create_using=nx.DiGraph())
         for edge in G.edges():
@@ -72,48 +76,15 @@ def read_edge_file(file_path):
     return data
 
 
-def alias_setup(probs):
-    """
-    Utility function for random walker
-    Compute utility lists for non-uniform sampling from discrete distributions.
-
-    https://lips.cs.princeton.edu/the-alias-method-efficient-sampling-with-many-discrete-outcomes/
-    """
-    K = len(probs)
-    q = np.zeros(K)
-    J = np.zeros(K, dtype=np.int)
-
-    smaller = []
-    larger = []
-    for kk, prob in enumerate(probs):
-        q[kk] = K * prob
-        if q[kk] < 1.0:
-            smaller.append(kk)
-        else:
-            larger.append(kk)
-
-    while len(smaller) > 0 and len(larger) > 0:
-        small = smaller.pop()
-        large = larger.pop()
-
-        J[small] = large
-        q[large] = q[large] + q[small] - 1.0
-        if q[large] < 1.0:
-            smaller.append(large)
-        else:
-            larger.append(large)
-
-    return J, q
-
-
-def alias_draw(J, q):
-    """
-    Draw sample from a non-uniform discrete distribution using alias sampling.
-    """
-    K = len(J)
-
-    kk = int(np.floor(np.random.rand() * K))
-    if np.random.rand() < q[kk]:
-        return kk
-    else:
-        return J[kk]
+#
+# Homogenize the data format
+#
+def to_adjacency_matrix(net):
+    if sparse.issparse(net):
+        if type(net) == "scipy.sparse.csr.csr_matrix":
+            return net
+        return sparse.csr_matrix(net)
+    elif "networkx" in "%s" % type(net):
+        return nx.adjacency_matrix(net)
+    elif "numpy.ndarray" == type(net):
+        return sparse.csr_matrix(net)
